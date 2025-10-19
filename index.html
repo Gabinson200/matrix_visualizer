@@ -6,12 +6,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="styles.css" rel="stylesheet" />
 
-  <!-- Optional 3D: Three.js + OrbitControls via CDN -->
-  <script defer src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
-  <script defer src="https://unpkg.com/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- Map the bare specifier "three" -->
+    <script type="importmap">
+        {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+        }
+        }
+    </script>
 
-  <script defer src="app.js"></script>
+    <script type="module">
+        import * as THREE from "three";
+        import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js";
+
+        // Make a mutable copy so we can attach OrbitControls
+        window.THREE = Object.assign({}, THREE, { OrbitControls });
+
+        // Load your app after THREE is set up
+        import "./app.js";
+    </script>
 </head>
+
 <body>
   <div class="page">
     <!-- LEFT COLUMN -->
