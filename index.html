@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Matrix Transform Visualizer (2D & 3D)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="styles.css" rel="stylesheet" />
+
+  <!-- Optional 3D: Three.js + OrbitControls via CDN -->
+  <script defer src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  <script defer src="https://unpkg.com/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <div class="page">
+    <!-- LEFT COLUMN -->
+    <section class="left">
+      <header class="header">
+        <h1>Matrix Transform Visualizer</h1>
+        <div class="mode-toggle">
+          <button id="btn-2d" class="selected">2D</button>
+          <button id="btn-3d">3D</button>
+        </div>
+      </header>
+
+      <!-- Equation-style editors -->
+      <div class="card">
+        <h2>Input Matrices</h2>
+        <div class="equation-row">
+          <!-- Points -->
+          <div class="editor">
+            <div class="editor-head">
+              <span id="points-label">Points (N×2)</span>
+              <button id="reset-points" class="link">reset</button>
+            </div>
+            <textarea id="points-text" spellcheck="false"></textarea>
+            <p class="hint">Rows = points. Use spaces/commas; new lines or semicolons for rows.</p>
+          </div>
+
+          <div class="times">×</div>
+
+          <!-- Transform -->
+          <div class="editor">
+            <div class="editor-head">
+              <span id="transform-label">Transform (3×3)</span>
+              <button id="reset-transform" class="link">reset</button>
+            </div>
+            <textarea id="transform-text" spellcheck="false"></textarea>
+            <label class="inline">
+              <input type="checkbox" id="chk-hom" checked />
+              Homogeneous (enable translation & affine)
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Presets grid -->
+      <div class="card">
+        <h2>Quick Matrix Builders</h2>
+        <div class="presets-grid">
+          <!-- Rotation -->
+          <div class="preset">
+            <div class="preset-title">Rotation</div>
+            <div id="axis-wrap" class="row hidden">
+              <label>Axis
+                <select id="axis-select">
+                  <option value="x">x</option>
+                  <option value="y">y</option>
+                  <option value="z" selected>z</option>
+                </select>
+              </label>
+            </div>
+            <input id="angle" type="range" min="-180" max="180" value="30" />
+            <div class="subtle">θ = <span id="angle-val">30</span>°</div>
+            <button id="btn-rotation" class="primary">Use Rotation</button>
+          </div>
+
+          <!-- Scale -->
+          <div class="preset">
+            <div class="preset-title">Scale</div>
+            <div class="row">
+              <label>sx <input id="sx" type="number" step="0.1" value="1" /></label>
+              <label>sy <input id="sy" type="number" step="0.1" value="1" /></label>
+              <label id="sz-wrap" class="hidden">sz <input id="sz" type="number" step="0.1" value="1" /></label>
+            </div>
+            <button id="btn-scale" class="primary">Use Scale</button>
+          </div>
+
+          <!-- Translation -->
+          <div class="preset">
+            <div class="preset-title">Translation</div>
+            <div class="row">
+              <label>tx <input id="tx" type="number" step="0.1" value="0.8" /></label>
+              <label>ty <input id="ty" type="number" step="0.1" value="0.4" /></label>
+              <label id="tz-wrap" class="hidden">tz <input id="tz" type="number" step="0.1" value="0.2" /></label>
+            </div>
+            <button id="btn-translation" class="primary">Use Translation</button>
+          </div>
+
+          <!-- Shear (2D only) -->
+          <div class="preset" id="shear-2d">
+            <div class="preset-title">Shear (2D)</div>
+            <div class="row">
+              <label>shx <input id="shx" type="number" step="0.1" value="0" /></label>
+              <label>shy <input id="shy" type="number" step="0.1" value="0" /></label>
+            </div>
+            <button id="btn-shear" class="primary">Use Shear</button>
+          </div>
+        </div>
+
+        <div id="poly-opts" class="row">
+          <label class="inline"><input type="checkbox" id="chk-connect" checked /> Connect points</label>
+          <label class="inline"><input type="checkbox" id="chk-close" /> Close polygon</label>
+        </div>
+
+        <div id="error" class="error hidden"></div>
+      </div>
+
+      <!-- Numeric output -->
+      <div class="card">
+        <h2>Numeric Output</h2>
+        <div class="two">
+          <div>
+            <div class="subtle">Original</div>
+            <pre id="out-original" class="code"></pre>
+          </div>
+          <div>
+            <div class="subtle">Transformed</div>
+            <pre id="out-transformed" class="code"></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT COLUMN -->
+    <aside class="right">
+      <div class="card sticky">
+        <div class="row between">
+          <h2>Preview</h2>
+          <div class="legend">Blue = original • Red = transformed</div>
+        </div>
+        <!-- 2D SVG -->
+        <svg id="svg2d" viewBox="0 0 560 420" class="panel"></svg>
+
+        <!-- 3D Canvas holder (added at runtime) -->
+        <div id="three3d" class="panel hidden"></div>
+
+        <div class="subtle">Tip: Compose transforms by multiplying matrices (left→right). The single matrix shown is applied to all points.</div>
+      </div>
+    </aside>
+  </div>
+</body>
+</html>
