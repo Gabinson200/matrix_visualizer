@@ -42,7 +42,33 @@ function scaleH2(sx,sy){return [[sx,0,0],[0,sy,0],[0,0,1]];}
 function scaleH3(sx,sy,sz){return [[sx,0,0,0],[0,sy,0,0],[0,0,sz,0],[0,0,0,1]];}
 function translateH2(tx,ty){return [[1,0,tx],[0,1,ty],[0,0,1]];}
 function translateH3(tx,ty,tz){return [[1,0,0,tx],[0,1,0,ty],[0,0,1,tz],[0,0,0,1]];}
-function shear2DH(shx,shy){return [[1,shx,0],[shy,1,0],[0,0,1]];}
+
+function shear2DH(shx,shy){
+    return [[1,shx,0],
+            [shy,1,0],
+            [0, 0, 1]];
+}
+
+function shear3D(sxy, sxz, syx, syz, szx, szy) {
+  // 3×3 linear shear
+  const M3 = [
+    [1,   sxy, sxz],
+    [syx, 1,   syz],
+    [szx, szy, 1  ],
+  ];
+  return M3;
+}
+
+function shear3DH(sxy, sxz, syx, syz, szx, szy) {
+  const S = shear3D(sxy, sxz, syx, syz, szx, szy);
+  // promote to 4×4 homogeneous
+  return [
+    [S[0][0], S[0][1], S[0][2], 0],
+    [S[1][0], S[1][1], S[1][2], 0],
+    [S[2][0], S[2][1], S[2][2], 0],
+    [0, 0, 0, 1],
+  ];
+}
 
 /* ===========================
  * DOM refs
@@ -79,6 +105,13 @@ const el = {
   three3d: document.getElementById('three3d'),
   outOrig: document.getElementById('out-original'),
   outTrans: document.getElementById('out-transformed'),
+  sxy: document.getElementById('sxy'),
+  sxz: document.getElementById('sxz'),
+  syx: document.getElementById('syx'),
+  syz: document.getElementById('syz'),
+  szx: document.getElementById('szx'),
+  szy: document.getElementById('szy'),
+  btnShear3D: document.getElementById('btn-shear-3d'),
 };
 
 let mode = '2D'; // '2D' | '3D'
@@ -104,10 +137,10 @@ const defaults = {
 1 -1 1
 1 1 1
 -1 1 1`,
-  transform3D_H: `1 0 0 0.8
-0 1 0 0.4
-0 0 1 0.2
-0 0 0 1`,
+  transform3D_H: `1 0 0 1
+0 1 0 2
+0 0 1 3
+0 0 0 4`,
   transform3D_L: `1 0 0
 0 1 0
 0 0 1`,
@@ -124,15 +157,20 @@ function setMode(newMode){
     ? (useHom?'Transform (3×3)':'Transform (2×2)')
     : (useHom?'Transform (4×4)':'Transform (3×3)');
 
+
   // show/hide 2D/3D-only controls
   el.axisWrap.classList.toggle('hidden', mode==='2D');
   el.szWrap.classList.toggle('hidden', mode==='2D');
   el.tzWrap.classList.toggle('hidden', mode==='2D');
   el.shear2d.classList.toggle('hidden', mode!=='2D');
-  el.polyOpts.classList.toggle('hidden', mode!=='2D');
+  el.polyOpts.classList.remove('hidden');
 
   el.svg2d.classList.toggle('hidden', mode!=='2D');
   el.three3d.classList.toggle('hidden', mode!=='3D');
+
+  // 2D vs 3D shear cards
+  document.getElementById('shear-2d').classList.toggle('hidden', mode !== '2D');
+  document.getElementById('shear-3d').classList.toggle('hidden', mode !== '3D');
 
   // if user switches modes, ensure we have matching example defaults
   if(mode==='2D' && !el.pointsText.value.trim()) el.pointsText.value = defaults.points2D;
@@ -253,8 +291,7 @@ function ensureThree(){
 
   function animate(){
     requestAnimationFrame(animate);
-    groupOrig.rotation.y += 0.0025;
-    groupTrans.rotation.y += 0.0025;
+    controls.update?.();
     renderer.render(scene, camera);
   }
   animate();
@@ -278,24 +315,59 @@ function render3D(original, transformed){
     container.innerHTML = '<div class="center subtle" style="display:grid;place-items:center;height:100%;">3D preview needs Three.js.</div>';
     return;
   }
-  const { groupOrig, groupTrans } = ctx;
-  // clear groups
-  while(groupOrig.children.length) groupOrig.remove(groupOrig.children[0]);
-  while(groupTrans.children.length) groupTrans.remove(groupTrans.children[0]);
 
-  const mkSphere = (color=0x2563eb) => {
+  const { groupOrig, groupTrans } = ctx;
+
+  // Clear groups
+  while (groupOrig.children.length) groupOrig.remove(groupOrig.children[0]);
+  while (groupTrans.children.length) groupTrans.remove(groupTrans.children[0]);
+
+  // Helpers
+  const mkSphere = (color=0xA78BFA) => {
     const geo = new THREE.SphereGeometry(0.07, 16, 16);
     const mat = new THREE.MeshStandardMaterial({ color });
     return new THREE.Mesh(geo, mat);
   };
 
-  original.forEach(p=>{
-    const m=mkSphere(0x2563eb); m.position.set(p[0]||0,p[1]||0,p[2]||0); groupOrig.add(m);
+  const makeLine = (pts, color) => {
+    if (!pts.length) return null;
+    const closePoly = el.chkClose.checked && pts.length > 2;
+    const seq = closePoly ? pts.concat([pts[0]]) : pts;
+    const arr = [];
+    for (const p of seq) {
+      arr.push(p[0] || 0, p[1] || 0, p[2] || 0);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3));
+    const material = new THREE.LineBasicMaterial({ color });
+    return new THREE.Line(geometry, material);
+  };
+
+  const connect = el.chkConnect.checked;
+
+  // Original: spheres + optional line
+  original.forEach(p => {
+    const m = mkSphere(0xA78BFA);
+    m.position.set(p[0]||0, p[1]||0, p[2]||0);
+    groupOrig.add(m);
   });
-  transformed.forEach(p=>{
-    const m=mkSphere(0xdc2626); m.position.set(p[0]||0,p[1]||0,p[2]||0); groupTrans.add(m);
+  if (connect) {
+    const line = makeLine(original, 0xA78BFA);
+    if (line) groupOrig.add(line);
+  }
+
+  // Transformed: spheres + optional line
+  transformed.forEach(p => {
+    const m = mkSphere(0xE879F9);
+    m.position.set(p[0]||0, p[1]||0, p[2]||0);
+    groupTrans.add(m);
   });
+  if (connect) {
+    const line = makeLine(transformed, 0xE879F9);
+    if (line) groupTrans.add(line);
+  }
 }
+
 
 /* ===========================
  * Glue
@@ -397,6 +469,21 @@ el.btnShear.addEventListener('click', ()=>{
   const shx=parseFloat(el.shx.value), shy=parseFloat(el.shy.value);
   pasteMatrix(el.chkHom.checked ? shear2DH(shx,shy) : [[1,shx],[shy,1]]);
 });
+
+if (el.btnShear3D) {
+  el.btnShear3D.addEventListener('click', () => {
+    const sxy = parseFloat(el.sxy.value) || 0;
+    const sxz = parseFloat(el.sxz.value) || 0;
+    const syx = parseFloat(el.syx.value) || 0;
+    const syz = parseFloat(el.syz.value) || 0;
+    const szx = parseFloat(el.szx.value) || 0;
+    const szy = parseFloat(el.szy.value) || 0;
+    const hom = el.chkHom.checked;
+    const S = hom ? shear3DH(sxy, sxz, syx, syz, szx, szy)
+                  : shear3D(sxy, sxz, syx, syz, szx, szy);
+    pasteMatrix(S);
+  });
+}
 
 // initial values & render
 el.pointsText.value = defaults.points2D;
